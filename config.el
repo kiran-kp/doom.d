@@ -75,8 +75,15 @@
 ;; You can also try 'gd' (or 'C-c c d') to jump to their definition and see how
 ;; they are implemented.
 
+(setq-default fill-column 120)
+
 (map! "C-z" 'undo-fu-only-undo
-      "C-S-z" 'undo-fu-only-redo)
+      "C-S-z" 'undo-fu-only-redo
+      "M-j" 'join-line
+      "M-o" 'ace-window)
+
+(map! :map lispy-mode-map
+      "M-o" 'ace-window)
 
 (map! :when (equal user-login-name "kiran")
       "C-c o a" 'aidermacs-transient-menu)
