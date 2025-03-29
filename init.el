@@ -85,7 +85,6 @@
        ;;zig
 
        :app
-       ;;calendar
        ;;everywhere
 
        :config
