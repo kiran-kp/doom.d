@@ -87,7 +87,6 @@
        :app
        ;;calendar
        ;;everywhere
-       ;;irc
 
        :config
        (default +bindings +smartparens))
