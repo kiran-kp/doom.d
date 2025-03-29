@@ -80,7 +80,8 @@
 (map! "C-z" 'undo-fu-only-undo
       "C-S-z" 'undo-fu-only-redo
       "M-j" 'join-line
-      "M-o" 'ace-window)
+      "M-o" 'ace-window
+      "M-z" 'zap-up-to-char)
 
 (map! :map lispy-mode-map
       "M-o" 'ace-window)
