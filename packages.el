@@ -48,4 +48,5 @@
 ;; ...Or *all* packages (NOT RECOMMENDED; will likely break things)
 ;; (unpin! t)
 
-(package! aidermacs)
+(when (equal user-login-name "kiran")
+  (package! aidermacs))

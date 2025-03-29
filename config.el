@@ -76,5 +76,7 @@
 ;; they are implemented.
 
 (map! "C-z" 'undo-fu-only-undo
-      "C-S-z" 'undo-fu-only-redo
+      "C-S-z" 'undo-fu-only-redo)
+
+(map! :when (equal user-login-name "kiran")
       "C-c o a" 'aidermacs-transient-menu)
