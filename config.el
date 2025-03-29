@@ -75,12 +75,6 @@
 ;; You can also try 'gd' (or 'C-c c d') to jump to their definition and see how
 ;; they are implemented.
 
-(global-unset-key (kbd "C-z"))
-(global-set-key (kbd "C-z")   'undo-fu-only-undo)
-(global-set-key (kbd "C-S-z") 'undo-fu-only-redo)
-
-(global-set-key (kbd "C-x o") 'ace-window)
-
-(use-package! aidermacs
-  :config
-  (global-set-key (kbd "C-c o a") 'aidermacs-transient-menu))
+(map! "C-z" 'undo-fu-only-undo
+      "C-S-z" 'undo-fu-only-redo
+      "C-c o a" 'aidermacs-transient-menu)
