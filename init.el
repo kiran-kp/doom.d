@@ -7,7 +7,6 @@
        :ui
        doom
        doom-dashboard
-       (emoji +unicode +github)
        hl-todo
        indent-guides
        ligatures
@@ -33,14 +32,11 @@
        (dired +dirvish)
        electric
        ibuffer
+       tramp
        undo
-       ;
 
        :term
        eshell
-       ;;shell
-       ;;term
-       ;;vterm
 
        :checkers
        syntax

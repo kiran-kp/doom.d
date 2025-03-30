@@ -82,10 +82,12 @@
       "C-S-z" 'undo-fu-only-redo
       "M-j" 'join-line
       "M-o" 'ace-window
-      "M-z" 'zap-up-to-char)
+      "M-z" 'zap-up-to-char
+      "M-g c" 'avy-goto-char)
 
 (map! :map lispy-mode-map
-      "M-o" 'ace-window)
+      "M-o" 'ace-window
+      "M-j" 'join-line)
 
 (map! :when (equal user-login-name "kiran")
       "C-c o a" 'aidermacs-transient-menu)
