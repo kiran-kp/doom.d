@@ -75,7 +75,8 @@
 ;; You can also try 'gd' (or 'C-c c d') to jump to their definition and see how
 ;; they are implemented.
 
-(setq-default fill-column 120)
+(setq-default fill-column 120
+              cursor-type 'bar)
 
 (map! "C-z" 'undo-fu-only-undo
       "C-S-z" 'undo-fu-only-redo
