@@ -78,12 +78,17 @@
 (setq-default fill-column 120
               cursor-type 'bar)
 
+(after! avy
+  (setq avy-keys '(?a ?o ?e ?e ?u ?i ?d ?h ?t ?n ?s)))
+
 (map! "C-z" 'undo-fu-only-undo
       "C-S-z" 'undo-fu-only-redo
       "M-j" 'join-line
       "M-o" 'ace-window
       "M-z" 'zap-up-to-char
-      "M-g c" 'avy-goto-char)
+      "M-g c" 'avy-goto-char
+      "M-g M-c" 'avy-goto-char
+      "C-<tab>" 'switch-to-prev-buffer)
 
 (map! :map lispy-mode-map
       "M-o" 'ace-window
