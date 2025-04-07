@@ -12,8 +12,7 @@
        ligatures
        modeline
        ophints
-       (popup +defaults)
-       treemacs
+       ;; (popup +defaults)
        unicode
        (vc-gutter +pretty)
        vi-tilde-fringe
@@ -24,7 +23,6 @@
        fold
        lispy
        multiple-cursors
-       ;;objed
        parinfer
        snippets
 
@@ -42,7 +40,7 @@
        syntax
 
        :tools
-       debugger
+       (:if (featurep :system 'gnu/linux) debugger)
        direnv
        editorconfig
        (eval +overlay)
@@ -79,9 +77,6 @@
        sh
        yaml
        ;;zig
-
-       :app
-       ;;everywhere
 
        :config
        (default +bindings +smartparens))
