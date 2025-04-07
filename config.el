@@ -96,3 +96,389 @@
 
 (map! :when (equal user-login-name "kiran")
       "C-c o a" 'aidermacs-transient-menu)
+
+(use-package! async
+  :config
+  (defvar async-maximum-parallel-procs 4)
+  (defvar async--parallel-procs 0)
+  (defvar async--queue nil)
+  (defvar-local async--cb nil)
+  (advice-add #'async-start :around
+              (lambda (orig-func func &optional callback)
+                (if (>= async--parallel-procs async-maximum-parallel-procs)
+                    (push `(,func ,callback) async--queue)
+                  (cl-incf async--parallel-procs)
+                  (let ((future (funcall orig-func func
+                                         (lambda (re)
+                                           (cl-decf async--parallel-procs)
+                                           (when async--cb (funcall async--cb re))
+                                           (when-let (args (pop async--queue))
+                                             (apply #'async-start args))))))
+                    (with-current-buffer (process-buffer future)
+                      (setq async--cb callback)))))
+              '((name . --queue-dispatch))))
+
+(defun my/p4-exec-p4 (output-buffer
+                      args
+                      &optional clear-output-buffer)
+  "Internal function called by various p4 commands."
+  (save-excursion
+    (if clear-output-buffer
+        (progn
+          (set-buffer output-buffer)
+          (delete-region (point-min) (point-max))))
+    (apply 'call-process
+           "p4"
+           (if (memq system-type '(ms-dos windows-nt)) "NUL" "/dev/null")
+           output-buffer
+           nil
+           args)))
+
+
+(defun my/p4-edit-file (&optional buffer)
+  (interactive)
+  (shell-command (format "p4 edit %s" (buffer-file-name buffer)))
+  (revert-buffer))
+
+(defun my/p4-add-file (&optional buffer)
+  (interactive)
+  (shell-command (format "p4 add %s" (buffer-file-name buffer))))
+
+(defun my/p4-revert-file (&optional buffer)
+  (interactive)
+  (shell-command (format "p4 revert %s" (buffer-file-name buffer)))
+  (revert-buffer nil t))
+
+(defun my/p4-diff ()
+  (interactive)
+  (shell-command (format "p4vc diff %s" (buffer-file-name))))
+
+(defvar my/p4-output-buffer-name "*P4 Output*" "P4 Output Buffer.")
+
+(defun my/p4-noinput-buffer-action (cmd
+                                    do-revert
+                                    show-output
+                                    &optional argument)
+  "Internal function called by various p4 commands."
+  (save-excursion
+    (if (not (stringp cmd))
+        (error "p4-noinput-buffer-action: Command not a string."))
+    (save-excursion
+      (if argument
+          (my/p4-exec-p4 (get-buffer-create my/p4-output-buffer-name)
+                         (append (list cmd) argument) t)
+        (my/p4-exec-p4 (get-buffer-create my/p4-output-buffer-name)
+                       (list cmd) t)))
+    (if do-revert (revert-buffer t t))
+    (if show-output
+        (progn
+          (delete-other-windows)
+          (display-buffer my/p4-output-buffer-name t)))))
+
+(defun my/p4-ediff ()
+  "Use ediff to compare file with its original client version."
+  (interactive)
+  (require 'ediff)
+  (my/p4-noinput-buffer-action "print"
+                               nil
+                               nil
+                               (list "-q"
+                                     (concat (buffer-file-name) "#have")))
+  (let ((local (current-buffer))
+        (depot (get-buffer-create my/p4-output-buffer-name)))
+    (ediff-buffers depot
+                   local
+                   `((lambda ()
+                       (make-local-variable 'ediff-cleanup-hook)
+                       (setq ediff-cleanup-hook
+                             (cons (lambda ()
+                                     (kill-buffer ,depot))
+                                   ediff-cleanup-hook)))))))
+
+(map! "C-c v 4 e" 'my/p4-edit-file
+      "C-c v 4 r" 'my/p4-revert-file
+      "C-c v 4 d" 'my/p4-ediff
+      "C-c v 4 a" 'my/p4-add-file)
+
+(use-package! org
+  :config
+  (require 'org-crypt)
+  (require 'org-id)
+  (require 'org-attach)
+
+  (org-crypt-use-before-save-magic)
+
+  (add-hook 'org-mode-hook
+            (lambda ()
+              (add-hook 'before-save-hook
+                        (lambda ()
+                          (org-align-tags t)
+                          (org-map-entries 'org-id-get-create))
+                        nil
+                        t)))
+
+  (setq org-link-make-description-function
+        (lambda (link desc)
+          (if (s-starts-with-p "file:" link)
+              (string-replace ".org" "" (string-replace "file:" "" link))
+            desc)))
+
+  (let ((my-refile-file (expand-file-name "~/org/Inbox.org")))
+    (setq
+     org-directory "~/org"
+     org-agenda-files '("~/org")
+     org-default-notes-file my-refile-file
+     org-capture-templates `(("t" "todo" entry (file ,my-refile-file)
+                              "* TODO %?\n")
+                             ("n" "note" entry (file ,my-refile-file)
+                              "* %?\n")
+                             ("m" "meeting" entry (file ,my-refile-file)
+                              "* Meeting with %?\n")
+                             ("h" "highlight" entry (file ,my-refile-file)
+                              "* HIGHLIGHT %?\n")
+                             ("l" "log" item (clock)
+                              "Note taken on %U \\\ \n%?"
+                              :prepend t))
+     org-log-into-drawer t
+     ;; org-log-state-notes-insert-after-drawers t
+     org-blank-before-new-entry '((heading . nil) (plain-list-item . nil))
+     org-use-tag-inheritance nil
+     org-todo-keywords '((sequence "TODO(t)"
+                                   "NEXT(n@/!)"
+                                   "BLOCKED(b@/!)"
+                                   "|"
+                                   "DONE(d!)"
+                                   "CANCELED(c@)"
+                                   "HIGHLIGHT"))
+     org-src-tab-acts-natively t
+     org-refile-targets '((org-agenda-files :maxlevel . 1))
+     org-refile-use-outline-path 'file
+     org-outline-path-complete-in-steps nil
+     org-plantuml-jar-path "/home/kiran/bin/plantuml.jar"
+     org-adapt-indentation nil
+     org-startup-indented t
+     org-tags-column -117
+     org-agenda-start-with-log-mode t
+     org-html-head-include-default-style nil
+     org-html-head-include-scripts nil
+     org-export-with-sub-superscripts (quote {})
+     org-agenda-window-setup 'only-window
+     org-agenda-custom-commands '(("n" "Custom agenda view"
+                                   ((todo "TALK")
+                                    (tags-todo "meeting")
+                                    (todo "BLOCKED")
+                                    (todo "REVIEW")
+                                    (todo "NEXT")
+                                    (todo "TODO")
+                                    (agenda "" ((org-agenda-span 1)
+                                                (org-agenda-log-mode t)
+                                                (org-agenda-log-mode-items '(closed clock state))))
+                                    (agenda ""))))
+     org-publish-project-alist
+     '(("website"
+        :base-directory "/home/kiran/projects/website"
+        :base-extension "org"
+        :exclude "navbar.org\\|build"
+        :publishing-directory "/home/kiran/projects/website/build"
+        :recursive t
+        :publishing-function org-html-publish-to-html
+        :headline-levels 6)
+       ("website-static"
+        :base-directory "/home/kiran/projects/website/static"
+        :base-extension "css\\|pdf"
+        :publishing-directory "/home/kiran/projects/website/build"
+        :recursive t
+        :publishing-function org-publish-attachment
+        :headline-levels 6)))))(use-package! async
+                                :config
+                                (defvar async-maximum-parallel-procs 4)
+                                (defvar async--parallel-procs 0)
+                                (defvar async--queue nil)
+                                (defvar-local async--cb nil)
+                                (advice-add #'async-start :around
+                                            (lambda (orig-func func &optional callback)
+                                              (if (>= async--parallel-procs async-maximum-parallel-procs)
+                                                  (push `(,func ,callback) async--queue)
+                                                (cl-incf async--parallel-procs)
+                                                (let ((future (funcall orig-func func
+                                                                       (lambda (re)
+                                                                         (cl-decf async--parallel-procs)
+                                                                         (when async--cb (funcall async--cb re))
+                                                                         (when-let (args (pop async--queue))
+                                                                           (apply #'async-start args))))))
+                                                  (with-current-buffer (process-buffer future)
+                                                    (setq async--cb callback)))))
+                                            '((name . --queue-dispatch))))
+
+(defun my/p4-exec-p4 (output-buffer
+                      args
+                      &optional clear-output-buffer)
+  "Internal function called by various p4 commands."
+  (save-excursion
+    (if clear-output-buffer
+        (progn
+          (set-buffer output-buffer)
+          (delete-region (point-min) (point-max))))
+    (apply 'call-process
+           "p4"
+           (if (memq system-type '(ms-dos windows-nt)) "NUL" "/dev/null")
+           output-buffer
+           nil
+           args)))
+
+
+(defun my/p4-edit-file (&optional buffer)
+  (interactive)
+  (shell-command (format "p4 edit %s" (buffer-file-name buffer)))
+  (revert-buffer))
+
+(defun my/p4-add-file (&optional buffer)
+  (interactive)
+  (shell-command (format "p4 add %s" (buffer-file-name buffer))))
+
+(defun my/p4-revert-file (&optional buffer)
+  (interactive)
+  (shell-command (format "p4 revert %s" (buffer-file-name buffer)))
+  (revert-buffer nil t))
+
+(defun my/p4-diff ()
+  (interactive)
+  (shell-command (format "p4vc diff %s" (buffer-file-name))))
+
+(defvar my/p4-output-buffer-name "*P4 Output*" "P4 Output Buffer.")
+
+(defun my/p4-noinput-buffer-action (cmd
+                                    do-revert
+                                    show-output
+                                    &optional argument)
+  "Internal function called by various p4 commands."
+  (save-excursion
+    (if (not (stringp cmd))
+        (error "p4-noinput-buffer-action: Command not a string."))
+    (save-excursion
+      (if argument
+          (my/p4-exec-p4 (get-buffer-create my/p4-output-buffer-name)
+                         (append (list cmd) argument) t)
+        (my/p4-exec-p4 (get-buffer-create my/p4-output-buffer-name)
+                       (list cmd) t)))
+    (if do-revert (revert-buffer t t))
+    (if show-output
+        (progn
+          (delete-other-windows)
+          (display-buffer my/p4-output-buffer-name t)))))
+
+(defun my/p4-ediff ()
+  "Use ediff to compare file with its original client version."
+  (interactive)
+  (require 'ediff)
+  (my/p4-noinput-buffer-action "print"
+                               nil
+                               nil
+                               (list "-q"
+                                     (concat (buffer-file-name) "#have")))
+  (let ((local (current-buffer))
+        (depot (get-buffer-create my/p4-output-buffer-name)))
+    (ediff-buffers depot
+                   local
+                   `((lambda ()
+                       (make-local-variable 'ediff-cleanup-hook)
+                       (setq ediff-cleanup-hook
+                             (cons (lambda ()
+                                     (kill-buffer ,depot))
+                                   ediff-cleanup-hook)))))))
+
+(map! "C-c v 4 e" 'my/p4-edit-file
+      "C-c v 4 r" 'my/p4-revert-file
+      "C-c v 4 d" 'my/p4-ediff
+      "C-c v 4 a" 'my/p4-add-file)
+
+(use-package! org
+  :config
+  (require 'org-crypt)
+  (require 'org-id)
+  (require 'org-attach)
+
+  (org-crypt-use-before-save-magic)
+
+  (add-hook 'org-mode-hook
+            (lambda ()
+              (add-hook 'before-save-hook
+                        (lambda ()
+                          (org-align-tags t)
+                          (org-map-entries 'org-id-get-create))
+                        nil
+                        t)))
+
+  (setq org-link-make-description-function
+        (lambda (link desc)
+          (if (s-starts-with-p "file:" link)
+              (string-replace ".org" "" (string-replace "file:" "" link))
+            desc)))
+
+  (let ((my-refile-file (expand-file-name "~/org/Inbox.org")))
+    (setq
+     org-directory "~/org"
+     org-agenda-files '("~/org")
+     org-default-notes-file my-refile-file
+     org-capture-templates `(("t" "todo" entry (file ,my-refile-file)
+                              "* TODO %?\n")
+                             ("n" "note" entry (file ,my-refile-file)
+                              "* %?\n")
+                             ("m" "meeting" entry (file ,my-refile-file)
+                              "* Meeting with %?\n")
+                             ("h" "highlight" entry (file ,my-refile-file)
+                              "* HIGHLIGHT %?\n")
+                             ("l" "log" item (clock)
+                              "Note taken on %U \\\ \n%?"
+                              :prepend t))
+     org-log-into-drawer t
+     ;; org-log-state-notes-insert-after-drawers t
+     org-blank-before-new-entry '((heading . nil) (plain-list-item . nil))
+     org-use-tag-inheritance nil
+     org-todo-keywords '((sequence "TODO(t)"
+                                   "NEXT(n@/!)"
+                                   "BLOCKED(b@/!)"
+                                   "|"
+                                   "DONE(d!)"
+                                   "CANCELED(c@)"
+                                   "HIGHLIGHT"))
+     org-src-tab-acts-natively t
+     org-refile-targets '((org-agenda-files :maxlevel . 1))
+     org-refile-use-outline-path 'file
+     org-outline-path-complete-in-steps nil
+     org-plantuml-jar-path "/home/kiran/bin/plantuml.jar"
+     org-adapt-indentation nil
+     org-startup-indented t
+     org-tags-column -117
+     org-agenda-start-with-log-mode t
+     org-html-head-include-default-style nil
+     org-html-head-include-scripts nil
+     org-export-with-sub-superscripts (quote {})
+     org-agenda-window-setup 'only-window
+     org-agenda-custom-commands '(("n" "Custom agenda view"
+                                   ((todo "TALK")
+                                    (tags-todo "meeting")
+                                    (todo "BLOCKED")
+                                    (todo "REVIEW")
+                                    (todo "NEXT")
+                                    (todo "TODO")
+                                    (agenda "" ((org-agenda-span 1)
+                                                (org-agenda-log-mode t)
+                                                (org-agenda-log-mode-items '(closed clock state))))
+                                    (agenda ""))))
+     org-publish-project-alist
+     '(("website"
+        :base-directory "/home/kiran/projects/website"
+        :base-extension "org"
+        :exclude "navbar.org\\|build"
+        :publishing-directory "/home/kiran/projects/website/build"
+        :recursive t
+        :publishing-function org-html-publish-to-html
+        :headline-levels 6)
+       ("website-static"
+        :base-directory "/home/kiran/projects/website/static"
+        :base-extension "css\\|pdf"
+        :publishing-directory "/home/kiran/projects/website/build"
+        :recursive t
+        :publishing-function org-publish-attachment
+        :headline-levels 6)))))
