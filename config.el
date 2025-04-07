@@ -264,10 +264,8 @@
      org-export-with-sub-superscripts (quote {})
      org-agenda-window-setup 'only-window
      org-agenda-custom-commands '(("n" "Custom agenda view"
-                                   ((todo "TALK")
-                                    (tags-todo "meeting")
+                                   ((tags-todo "meeting")
                                     (todo "BLOCKED")
-                                    (todo "REVIEW")
                                     (todo "NEXT")
                                     (todo "TODO")
                                     (agenda "" ((org-agenda-span 1)
@@ -289,26 +287,28 @@
         :publishing-directory "/home/kiran/projects/website/build"
         :recursive t
         :publishing-function org-publish-attachment
-        :headline-levels 6)))))(use-package! async
-                                :config
-                                (defvar async-maximum-parallel-procs 4)
-                                (defvar async--parallel-procs 0)
-                                (defvar async--queue nil)
-                                (defvar-local async--cb nil)
-                                (advice-add #'async-start :around
-                                            (lambda (orig-func func &optional callback)
-                                              (if (>= async--parallel-procs async-maximum-parallel-procs)
-                                                  (push `(,func ,callback) async--queue)
-                                                (cl-incf async--parallel-procs)
-                                                (let ((future (funcall orig-func func
-                                                                       (lambda (re)
-                                                                         (cl-decf async--parallel-procs)
-                                                                         (when async--cb (funcall async--cb re))
-                                                                         (when-let (args (pop async--queue))
-                                                                           (apply #'async-start args))))))
-                                                  (with-current-buffer (process-buffer future)
-                                                    (setq async--cb callback)))))
-                                            '((name . --queue-dispatch))))
+        :headline-levels 6)))))
+
+(use-package! async
+  :config
+  (defvar async-maximum-parallel-procs 4)
+  (defvar async--parallel-procs 0)
+  (defvar async--queue nil)
+  (defvar-local async--cb nil)
+  (advice-add #'async-start :around
+              (lambda (orig-func func &optional callback)
+                (if (>= async--parallel-procs async-maximum-parallel-procs)
+                    (push `(,func ,callback) async--queue)
+                  (cl-incf async--parallel-procs)
+                  (let ((future (funcall orig-func func
+                                         (lambda (re)
+                                           (cl-decf async--parallel-procs)
+                                           (when async--cb (funcall async--cb re))
+                                           (when-let (args (pop async--queue))
+                                             (apply #'async-start args))))))
+                    (with-current-buffer (process-buffer future)
+                      (setq async--cb callback)))))
+              '((name . --queue-dispatch))))
 
 (defun my/p4-exec-p4 (output-buffer
                       args
