@@ -68,7 +68,7 @@
        ;;lua
        markdown
        ;;nix
-       org
+       (org +pretty +present +pandoc)
        python
        ;;racket
        ;;rest

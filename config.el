@@ -78,6 +78,12 @@
 (setq-default fill-column 120
               cursor-type 'bar)
 
+(set-face-attribute 'default nil :family "Iosevka")
+(set-face-attribute 'variable-pitch nil :family "Iosevka Aile")
+
+(after! org-modern
+  (set-face-attribute 'org-modern-symbol nil :family "Iosevka"))
+
 (after! avy
   (setq avy-keys '(?a ?o ?e ?e ?u ?i ?d ?h ?t ?n ?s)))
 

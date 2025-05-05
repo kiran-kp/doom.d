@@ -50,3 +50,5 @@
 
 (when (equal user-login-name "kiran")
   (package! aidermacs))
+
+(package! dired-rsync-transient)
